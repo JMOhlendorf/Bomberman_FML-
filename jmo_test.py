@@ -8,6 +8,8 @@ b = np.array(b)
 print( type(b) == np.ndarray)
 dist = np.linalg.norm(a - b)
 print(dist)
+
+my_arr = np.array([45])
 """
 field = np.ones((5,5))
 coins_pos = np.array([[0,0], [0,2], [3,4], [1,2]])
