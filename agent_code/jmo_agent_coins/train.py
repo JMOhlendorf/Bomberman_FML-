@@ -13,12 +13,14 @@ Transition = namedtuple('Transition',
 # Hyper parameters -- DO modify
 TRANSITION_HISTORY_SIZE = 6  # keep only ... last transitions
 RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
-gamma = 0.90
+gamma = 0.9
+# learning rate
 lr = 0.01
 
 # Events
 PLACEHOLDER_EVENT = "PLACEHOLDER"
-REDUCE_OVERALL_DIST = "REDUCE_OVERALL_DIST"
+REDUCE_COIN_DIST = "REDUCE_COIN_DIST"
+INCREASE_COIN_DIST = "INCREASE_COIN_DIST"
 
 
 def setup_training(self):
@@ -47,8 +49,6 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     settings.py to see what events are tracked. You can hand out rewards to your
     agent based on these events and your knowledge of the (new) game state.
 
-    This is *one* of the places where you could update your agent.
-
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     :param old_game_state: The state that was passed to the last call of `act`.
     :param self_action: The action that you took.
@@ -64,7 +64,9 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         dist_old = feature_old[-1]
         dist_new = feature_new[-1]
         if dist_new < dist_old:
-            events.append(REDUCE_OVERALL_DIST)
+            events.append(REDUCE_COIN_DIST)
+        if dist_new > dist_old:
+            events.append(INCREASE_COIN_DIST)
 
     reward = reward_from_events(self, events)
     self.transitions.append(Transition(old_game_state, self_action, new_game_state, reward))
@@ -97,8 +99,6 @@ def update_nstep(self, n_step):
 
         self.model[:, beta_index] = beta_a + (lr * X_st.T * (target - X_st @ beta_a))
 
-        #self.logger.debug(f'beta_a before:{beta_a}')
-        #self.logger.debug(f'beta_a after:{self.model[:, beta_index]}')
         self.logger.debug(f'beta_a difference:{np.sum(np.abs(beta_a - self.model[:, beta_index]))}')
 
 
@@ -131,12 +131,12 @@ def reward_from_events(self, events: List[str]) -> int:
     """
     game_rewards = {
         e.COIN_COLLECTED: 10,
-        e.KILLED_OPPONENT: 5,
-        REDUCE_OVERALL_DIST: 10,
-        e.MOVED_DOWN: 0.1,
-        e.MOVED_UP: 0.1,
-        e.MOVED_RIGHT: 0.1,
-        e.MOVED_LEFT: 0.1,
+        REDUCE_COIN_DIST: 10,
+        INCREASE_COIN_DIST: -10,
+        e.MOVED_DOWN: 1,
+        e.MOVED_UP: 1,
+        e.MOVED_RIGHT: 1,
+        e.MOVED_LEFT: 1,
         e.WAITED: -4,
         e.INVALID_ACTION: -6
     }

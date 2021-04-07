@@ -8,9 +8,9 @@ from scipy.special import softmax
 scan_length = 3
 # number of feature values
 #feature_length = ((2 * scan_length) + 1)**2 + 289 + 2
-feature_length = ((2 * scan_length) + 1)**2 + 2
+feature_length = ((2 * scan_length) + 1)**2 + 1
 # name of the model to build or load
-model_name = "model_rounds500.pt"
+model_name = "model_rounds_1000.pt"
 # temperature parameter for softmax
 rho = 2
 
@@ -67,13 +67,6 @@ def act(self, game_state: dict) -> str:
     # using trained model to determine actions
     if not self.train:
         # self.logger.debug("Trained agent is playing")
-        """
-        # alternative action calculation with randomness
-        Q = Q_func(self, game_state)
-        Q_prob = softmax(Q)
-        action = np.random.choice(self.ACTIONS, p=Q_prob)
-        return action
-        """
 
         Q = Q_func(self, game_state)
         self.logger.info(f"Q: {Q}")
@@ -119,7 +112,7 @@ def state_to_features(self, game_state: dict) -> np.array:
         # feature: surrounding of the agent
         # if scan_length > 1 a new field is created with -1 values around the original field
         field = game_state['field']
-        #self.logger.info(f"FIELD: {field}")
+
         added_tiles = scan_length - 1
         new_shape = 17 + 2 * added_tiles
         new_field = -1 * np.ones((new_shape, new_shape))
@@ -143,23 +136,11 @@ def state_to_features(self, game_state: dict) -> np.array:
         dist_coins[0: len(dist_coins_temp)] = dist_coins_temp
         mask = dist_coins > 0.0
 
-        # take only the closest coin as a feature
-        closest_dist = np.array([np.min(dist_coins[mask]) / 20])
+        # take only the closest coi n as a feature
+        norm_fact = np.sqrt(2 * 15 ** 2)
+        closest_coin_dist = np.array([np.min(dist_coins[mask]) / norm_fact])
 
-        # take the total dist as a feature
-        # total_dist = np.sum(dist_coins) / 190
 
-        # take steps as a feature
-        steps = np.array([game_state['step'] / 20])
-
-        # Using coin positions
-        coin_field = np.zeros_like(field)
-        coins_x = coins_pos[:, 0]
-        coins_y = coins_pos[:, 1]
-        coin_field[coins_x, coins_y] = 0.5
-        coin_field = coin_field.flatten()
-
-    #features = np.concatenate((surrounding, steps, coin_field, closest_dist))
-    features = np.concatenate((surrounding, steps, closest_dist))
+    features = np.concatenate((surrounding, closest_coin_dist))
 
     return features

@@ -13,14 +13,17 @@ Transition = namedtuple('Transition',
 # Hyper parameters -- DO modify
 TRANSITION_HISTORY_SIZE = 6  # keep only ... last transitions
 RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
-gamma = 0.6
+gamma = 0.9
+# learning rate
 lr = 0.01
 
 # Events
 INCREASE_BOMB_DIST = "INCREASE_BOMB_DIST"
+DECREASE_BOMB_DIST = "DECREASE_BOMB_DIST"
 AVOID_BOMB = "AVOID_BOMB"
 REDUCE_CRATE_DENSITY = "REDUCE_CRATE_DENSITY"
 REDUCE_COIN_DIST = "REDUCE_COIN_DIST"
+INCREASE_COIN_DIST = "INCREASE_COIN_DIST"
 
 
 def setup_training(self):
@@ -49,8 +52,6 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     settings.py to see what events are tracked. You can hand out rewards to your
     agent based on these events and your knowledge of the (new) game state.
 
-    This is *one* of the places where you could update your agent.
-
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     :param old_game_state: The state that was passed to the last call of `act`.
     :param self_action: The action that you took.
@@ -65,18 +66,23 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     if (old_game_state != None) and (new_game_state != None):
 
         # reward if bomb is tried to be avoided or c
-        x_coord_old = feature_old[-6]
-        x_coord_new = feature_new[-6]
-        y_coord_old = feature_old[-5]
-        y_coord_new = feature_new[-5]
-        bomb_dist_old = feature_new[-4]
-        bomb_dist_new = feature_new[-4]
+        x_coord_old = feature_old[-5]
+        x_coord_new = feature_new[-5]
+        y_coord_old = feature_old[-4]
+        y_coord_new = feature_new[-4]
+        bomb_dist_old = feature_new[-3]
+        bomb_dist_new = feature_new[-3]
         if bomb_dist_old <= 4:
             dist_increased = (bomb_dist_new > bomb_dist_old)
+            dist_decreased = (bomb_dist_new < bomb_dist_old)
             if (x_coord_old == x_coord_new) and dist_increased:
                 events.append(INCREASE_BOMB_DIST)
+            elif (x_coord_old == x_coord_new) and dist_decreased:
+                events.append(DECREASE_BOMB_DIST)
             elif (y_coord_old == y_coord_new) and dist_increased:
                 events.append(INCREASE_BOMB_DIST)
+            elif (y_coord_old == y_coord_new) and dist_decreased:
+                events.append(DECREASE_BOMB_DIST)
             elif (x_coord_old != x_coord_new) and dist_increased:
                 events.append(AVOID_BOMB)
             elif (y_coord_old != y_coord_new) and dist_increased:
@@ -94,6 +100,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         if (coin_dist_old != 0) and (coin_dist_new != 0):
             if coin_dist_new < coin_dist_old:
                 events.append(REDUCE_COIN_DIST)
+            if coin_dist_new > coin_dist_old:
+                events.append(INCREASE_COIN_DIST)
 
 
     reward = reward_from_events(self, events)
@@ -132,8 +140,6 @@ def update_nstep(self, n_step):
 
         self.model[:, beta_index] = beta_a + (lr * X_st.T * (target - X_st @ beta_a))
 
-        #self.logger.debug(f'beta_a before:{beta_a}')
-        #self.logger.debug(f'beta_a after:{self.model[:, beta_index]}')
         self.logger.debug(f'beta_a difference:{np.sum(np.abs(beta_a - self.model[:, beta_index]))}')
 
 
@@ -167,17 +173,19 @@ def reward_from_events(self, events: List[str]) -> int:
     game_rewards = {
         e.COIN_COLLECTED: 10,
         INCREASE_BOMB_DIST: 5,
-        AVOID_BOMB: 10,
+        DECREASE_BOMB_DIST: -5,
+        AVOID_BOMB: 8,
         REDUCE_CRATE_DENSITY: 5,
-        e.BOMB_DROPPED: 2,
-        e.CRATE_DESTROYED: 5,
+        REDUCE_COIN_DIST: 5,
+        INCREASE_COIN_DIST: -5,
+        e.BOMB_DROPPED: 5,
         e.KILLED_SELF: -10,
         e.SURVIVED_ROUND: 10,
-        e.MOVED_DOWN: 0.01,
-        e.MOVED_UP: 0.01,
-        e.MOVED_RIGHT: 0.01,
-        e.MOVED_LEFT: 0.01,
-        e.WAITED: -4,
+        e.MOVED_DOWN: 0.5,
+        e.MOVED_UP: 0.5,
+        e.MOVED_RIGHT: 0.5,
+        e.MOVED_LEFT: 0.5,
+        e.WAITED: 0,
         e.INVALID_ACTION: -6
     }
     reward_sum = 0
